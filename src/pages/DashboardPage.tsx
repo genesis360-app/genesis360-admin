@@ -10,6 +10,7 @@ export default function DashboardPage() {
   const m = data?.metrics
 
   const cards = [
+    { label: 'MRR', value: m ? '$' + Math.round(m.mrr).toLocaleString('es-AR') : undefined },
     { label: 'Clientes totales', value: m?.total },
     { label: 'Altas (30 días)', value: m?.altas30 },
     { label: 'En trial', value: m?.enTrial },
@@ -23,7 +24,7 @@ export default function DashboardPage() {
         <div className="text-sm text-danger">{(error as Error).message}</div>
       ) : (
         <>
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
             {cards.map(c => (
               <div key={c.label} className="bg-surface rounded-xl shadow-card p-5">
                 <div className="text-sm text-muted">{c.label}</div>

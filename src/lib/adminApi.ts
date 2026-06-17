@@ -21,7 +21,13 @@ export async function callAdminApi<T = unknown>(
 // ── Tipos ──
 export interface CustomerRow { id: string; nombre: string | null; created_at: string }
 export interface Metrics {
-  total: number; altas30: number; enTrial: number; ticketsAbiertos: number; basico: number; avanzado: number
+  total: number; altas30: number; enTrial: number; ticketsAbiertos: number; basico: number; avanzado: number; mrr: number
+}
+export interface PlanRow { nombre: string; precio_mensual: number; tenants: number; subtotal: number }
+export type LeadEstado = 'lead' | 'qualified' | 'demo' | 'trial' | 'won' | 'lost'
+export interface Lead {
+  id: string; nombre: string; empresa: string | null; email: string | null; telefono: string | null
+  estado: LeadEstado; valor_estimado: number | null; origen: string | null; created_at: string; updated_at: string
 }
 export interface CustomerDetail {
   tenant: {
@@ -60,6 +66,14 @@ export const adminApi = {
     callAdminApi<{ ok: true }>('support.tickets.reply', { ticketId, cuerpo }),
   updateTicket: (a: { ticketId: string; estado?: TicketEstado; prioridad?: TicketPrioridad; asignadoA?: string | null }) =>
     callAdminApi<{ ok: true }>('support.tickets.update', a),
+
+  billingOverview: () => callAdminApi<{ mrr: number; por_plan: PlanRow[] }>('billing.overview'),
+
+  listLeads: () => callAdminApi<{ leads: Lead[] }>('crm.leads.list'),
+  createLead: (a: { nombre: string; empresa?: string; email?: string; estado?: LeadEstado; valorEstimado?: number; origen?: string }) =>
+    callAdminApi<{ ok: true; id: string }>('crm.leads.create', a),
+  updateLead: (a: { leadId: string; estado?: LeadEstado; nombre?: string; valorEstimado?: number }) =>
+    callAdminApi<{ ok: true }>('crm.leads.update', a),
 
   listAgents: () => callAdminApi<{ agents: Agent[] }>('agents.list'),
   createAgent: (a: { email: string; nombre?: string; rol: Rol; password: string }) =>
