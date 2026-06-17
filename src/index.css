@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .inp {
+    @apply w-full h-10 px-3 rounded-lg border border-outline bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary;
+  }
+}
+
 :root {
   font-family: 'Inter', system-ui, sans-serif;
 }

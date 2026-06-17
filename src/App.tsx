@@ -1,26 +1,32 @@
 import { Routes, Route } from 'react-router-dom'
 import { AuthGate } from '@/auth/AuthGate'
+import { AgentProvider } from '@/auth/AgentContext'
 import { AdminLayout } from '@/components/layout/AdminLayout'
+import { RequireModule } from '@/components/RequireModule'
 import DashboardPage from '@/pages/DashboardPage'
 import CustomersPage from '@/pages/CustomersPage'
 import CrmPage from '@/pages/CrmPage'
 import SupportPage from '@/pages/SupportPage'
 import AnalyticsPage from '@/pages/AnalyticsPage'
 import BillingPage from '@/pages/BillingPage'
+import UsersPage from '@/pages/UsersPage'
 
 export default function App() {
   return (
     <AuthGate>
-      <Routes>
-        <Route element={<AdminLayout />}>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/customers" element={<CustomersPage />} />
-          <Route path="/crm" element={<CrmPage />} />
-          <Route path="/support" element={<SupportPage />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
-          <Route path="/billing" element={<BillingPage />} />
-        </Route>
-      </Routes>
+      <AgentProvider>
+        <Routes>
+          <Route element={<AdminLayout />}>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/customers" element={<RequireModule module="customers"><CustomersPage /></RequireModule>} />
+            <Route path="/crm" element={<RequireModule module="crm"><CrmPage /></RequireModule>} />
+            <Route path="/support" element={<RequireModule module="support"><SupportPage /></RequireModule>} />
+            <Route path="/analytics" element={<RequireModule module="analytics"><AnalyticsPage /></RequireModule>} />
+            <Route path="/billing" element={<RequireModule module="billing"><BillingPage /></RequireModule>} />
+            <Route path="/users" element={<RequireModule module="users"><UsersPage /></RequireModule>} />
+          </Route>
+        </Routes>
+      </AgentProvider>
     </AuthGate>
   )
 }
