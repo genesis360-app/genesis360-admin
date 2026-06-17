@@ -5,6 +5,7 @@ import { AdminLayout } from '@/components/layout/AdminLayout'
 import { RequireModule } from '@/components/RequireModule'
 import DashboardPage from '@/pages/DashboardPage'
 import CustomersPage from '@/pages/CustomersPage'
+import CustomerDetailPage from '@/pages/CustomerDetailPage'
 import CrmPage from '@/pages/CrmPage'
 import SupportPage from '@/pages/SupportPage'
 import AnalyticsPage from '@/pages/AnalyticsPage'
@@ -19,6 +20,7 @@ export default function App() {
           <Route element={<AdminLayout />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/customers" element={<RequireModule module="customers"><CustomersPage /></RequireModule>} />
+            <Route path="/customers/:id" element={<RequireModule module="customers"><CustomerDetailPage /></RequireModule>} />
             <Route path="/crm" element={<RequireModule module="crm"><CrmPage /></RequireModule>} />
             <Route path="/support" element={<RequireModule module="support"><SupportPage /></RequireModule>} />
             <Route path="/analytics" element={<RequireModule module="analytics"><AnalyticsPage /></RequireModule>} />

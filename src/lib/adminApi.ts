@@ -4,7 +4,6 @@ import type { Agent, Rol } from '@/config/permissions'
 /**
  * Capa de datos del panel. TODO el acceso cross-tenant pasa por la Edge Function
  * `admin-api` (service_role), que valida agente + AUTORIZA por rol + audita.
- * Nunca se expone la service_role key al cliente ni se abre la RLS por tenant.
  */
 export async function callAdminApi<T = unknown>(
   action: string,
@@ -12,7 +11,6 @@ export async function callAdminApi<T = unknown>(
 ): Promise<T> {
   const { data, error } = await supabase.functions.invoke('admin-api', { body: { action, ...payload } })
   if (error) {
-    // La EF manda el detalle en el body (403/400/etc.) — intentar leerlo
     let msg = error.message
     try { const ctx = await (error as any).context?.json?.(); if (ctx?.error) msg = ctx.error } catch { /* noop */ }
     throw new Error(msg)
@@ -20,12 +18,49 @@ export async function callAdminApi<T = unknown>(
   return data as T
 }
 
+// ── Tipos ──
 export interface CustomerRow { id: string; nombre: string | null; created_at: string }
+export interface Metrics {
+  total: number; altas30: number; enTrial: number; ticketsAbiertos: number; basico: number; avanzado: number
+}
+export interface CustomerDetail {
+  tenant: {
+    id: string; nombre: string | null; plan_id: string | null; modo_operacion: string | null
+    created_at: string; trial_ends_at: string | null; inicio_actividades: string | null
+  }
+  stats: {
+    usuarios: number; sucursales: number; ventas_total: number; ventas_30d: number
+    tickets_abiertos: number; ultima_venta_at: string | null
+  }
+  recent_sales: { numero: number; total: number; estado: string; created_at: string }[]
+}
+export type TicketEstado = 'abierto' | 'en_progreso' | 'esperando' | 'resuelto' | 'cerrado'
+export type TicketPrioridad = 'baja' | 'media' | 'alta' | 'urgente'
+export interface TicketRow {
+  id: string; asunto: string; estado: TicketEstado; prioridad: TicketPrioridad
+  asignado_a: string | null; tenant_id: string; created_at: string; updated_at: string
+  tenants?: { nombre: string | null } | null
+}
+export interface TicketMensaje { id: string; autor_tipo: string; autor_id: string | null; cuerpo: string; created_at: string }
+export interface TicketDetail { ticket: TicketRow & Record<string, unknown>; mensajes: TicketMensaje[] }
 
 export const adminApi = {
   whoami: () => callAdminApi<{ agent: Agent }>('auth.whoami'),
+  metricsOverview: () => callAdminApi<{ metrics: Metrics }>('metrics.overview'),
+
   listCustomers: (q?: string) => callAdminApi<{ customers: CustomerRow[] }>('customers.list', { q }),
-  getCustomer: (tenantId: string) => callAdminApi('customers.get', { tenantId }),
+  getCustomer: (tenantId: string) => callAdminApi<CustomerDetail>('customers.get', { tenantId }),
+
+  listTickets: (f: { estado?: string; tenantId?: string; asignadoA?: 'me' } = {}) =>
+    callAdminApi<{ tickets: TicketRow[] }>('support.tickets.list', f),
+  getTicket: (ticketId: string) => callAdminApi<TicketDetail>('support.tickets.get', { ticketId }),
+  createTicket: (a: { tenantId: string; asunto: string; prioridad?: TicketPrioridad; cuerpo?: string }) =>
+    callAdminApi<{ ok: true; id: string }>('support.tickets.create', a),
+  replyTicket: (ticketId: string, cuerpo: string) =>
+    callAdminApi<{ ok: true }>('support.tickets.reply', { ticketId, cuerpo }),
+  updateTicket: (a: { ticketId: string; estado?: TicketEstado; prioridad?: TicketPrioridad; asignadoA?: string | null }) =>
+    callAdminApi<{ ok: true }>('support.tickets.update', a),
+
   listAgents: () => callAdminApi<{ agents: Agent[] }>('agents.list'),
   createAgent: (a: { email: string; nombre?: string; rol: Rol; password: string }) =>
     callAdminApi<{ ok: true; id: string }>('agents.create', a),

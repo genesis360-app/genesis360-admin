@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Search } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Search, ChevronRight } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { adminApi } from '@/lib/adminApi'
 
 export default function CustomersPage() {
+  const navigate = useNavigate()
   const [q, setQ] = useState('')
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['customers', q],
@@ -35,17 +37,20 @@ export default function CustomersPage() {
               <tr className="text-left text-xs font-semibold text-muted border-b border-outline/30">
                 <th className="px-5 py-3">Cliente</th>
                 <th className="px-5 py-3">Alta</th>
+                <th className="px-5 py-3"></th>
               </tr>
             </thead>
             <tbody>
               {customers.map(c => (
-                <tr key={c.id} className="border-b border-outline/20 hover:bg-surface-low transition-colors">
+                <tr key={c.id} onClick={() => navigate(`/customers/${c.id}`)}
+                  className="border-b border-outline/20 hover:bg-surface-low transition-colors cursor-pointer">
                   <td className="px-5 py-3 font-medium text-ink">{c.nombre ?? '—'}</td>
                   <td className="px-5 py-3 text-muted">{new Date(c.created_at).toLocaleDateString('es-AR')}</td>
+                  <td className="px-5 py-3 text-right text-muted"><ChevronRight size={16} /></td>
                 </tr>
               ))}
               {customers.length === 0 && (
-                <tr><td colSpan={2} className="px-5 py-8 text-center text-muted">Sin resultados</td></tr>
+                <tr><td colSpan={3} className="px-5 py-8 text-center text-muted">Sin resultados</td></tr>
               )}
             </tbody>
           </table>
