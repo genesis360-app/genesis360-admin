@@ -52,6 +52,7 @@ export interface TicketDetail { ticket: TicketRow & Record<string, unknown>; men
 
 export const adminApi = {
   whoami: () => callAdminApi<{ agent: Agent }>('auth.whoami'),
+  changePassword: (password: string) => callAdminApi<{ ok: true }>('auth.change_password', { password }),
   metricsOverview: () => callAdminApi<{ metrics: Metrics }>('metrics.overview'),
 
   listCustomers: (q?: string) => callAdminApi<{ customers: CustomerRow[] }>('customers.list', { q }),
