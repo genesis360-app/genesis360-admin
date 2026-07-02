@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Plus } from 'lucide-react'
+import { ArrowLeft, Plus, XCircle } from 'lucide-react'
 import { adminApi, type TicketPrioridad } from '@/lib/adminApi'
+import { useAgent } from '@/auth/AgentContext'
+import { canSee } from '@/config/permissions'
 
 const fmtMoney = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleDateString('es-AR') : '—')
@@ -11,6 +13,7 @@ export default function CustomerDetailPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const agent = useAgent()
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['customer', id],
     queryFn: () => adminApi.getCustomer(id),
@@ -25,6 +28,11 @@ export default function CustomerDetailPage() {
       setTicketForm({ open: false, asunto: '', prioridad: 'media', cuerpo: '' })
       qc.invalidateQueries({ queryKey: ['customer', id] })
     },
+  })
+
+  const cancelarSub = useMutation({
+    mutationFn: () => adminApi.cancelSubscription(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['customer', id] }),
   })
 
   if (isLoading) return <div className="text-sm text-muted">Cargando…</div>
@@ -52,13 +60,32 @@ export default function CustomerDetailPage() {
           <p className="text-sm text-muted mt-1">
             Alta {fmtDate(tenant.created_at)} · Modo {tenant.modo_operacion ?? '—'}
             {tenant.trial_ends_at && new Date(tenant.trial_ends_at) > new Date() ? ` · Trial hasta ${fmtDate(tenant.trial_ends_at)}` : ''}
+            {tenant.subscription_status ? ` · Suscripción: ${tenant.subscription_status}` : ''}
           </p>
         </div>
-        <button onClick={() => setTicketForm(f => ({ ...f, open: !f.open }))}
-          className="flex items-center gap-2 h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-600">
-          <Plus size={16} /> Crear ticket
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Cancelar suscripción — solo rol con módulo billing (admin/billing) y si no está ya cancelada.
+              Cancela el preapproval en MP (fail-closed) vía admin-api → billing.cancel_subscription. */}
+          {canSee(agent.rol, 'billing') && tenant.subscription_status !== 'cancelled' && (
+            <button
+              disabled={cancelarSub.isPending}
+              onClick={() => {
+                if (confirm(`¿Cancelar la suscripción de ${tenant.nombre ?? 'este cliente'}? Se cancela el cobro en Mercado Pago y la cuenta pasa a "cancelado".`)) {
+                  cancelarSub.mutate()
+                }
+              }}
+              className="flex items-center gap-2 h-10 px-4 rounded-lg border border-danger/40 text-danger text-sm font-semibold hover:bg-danger/10 disabled:opacity-50">
+              <XCircle size={16} /> {cancelarSub.isPending ? 'Cancelando…' : 'Cancelar suscripción'}
+            </button>
+          )}
+          <button onClick={() => setTicketForm(f => ({ ...f, open: !f.open }))}
+            className="flex items-center gap-2 h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-600">
+            <Plus size={16} /> Crear ticket
+          </button>
+        </div>
       </div>
+      {cancelarSub.isError && <p className="text-sm text-danger mb-4">{(cancelarSub.error as Error).message}</p>}
+      {cancelarSub.isSuccess && <p className="text-sm text-emerald-600 mb-4">Suscripción cancelada (MP + cuenta).</p>}
 
       {ticketForm.open && (
         <div className="bg-surface rounded-xl shadow-card p-5 mb-6 space-y-3">

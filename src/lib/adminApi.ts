@@ -33,6 +33,7 @@ export interface CustomerDetail {
   tenant: {
     id: string; nombre: string | null; plan_id: string | null; modo_operacion: string | null
     created_at: string; trial_ends_at: string | null; inicio_actividades: string | null
+    subscription_status: string | null
   }
   stats: {
     usuarios: number; sucursales: number; ventas_total: number; ventas_30d: number
@@ -69,6 +70,8 @@ export const adminApi = {
     callAdminApi<{ ok: true }>('support.tickets.update', a),
 
   billingOverview: () => callAdminApi<{ mrr: number; por_plan: PlanRow[] }>('billing.overview'),
+  cancelSubscription: (tenantId: string) =>
+    callAdminApi<{ ok: true; mp_cancelled: number }>('billing.cancel_subscription', { tenantId }),
 
   listLeads: () => callAdminApi<{ leads: Lead[] }>('crm.leads.list'),
   createLead: (a: { nombre: string; empresa?: string; email?: string; estado?: LeadEstado; valorEstimado?: number; origen?: string }) =>
