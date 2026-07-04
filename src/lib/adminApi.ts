@@ -72,6 +72,12 @@ export const adminApi = {
   billingOverview: () => callAdminApi<{ mrr: number; por_plan: PlanRow[] }>('billing.overview'),
   cancelSubscription: (tenantId: string) =>
     callAdminApi<{ ok: true; mp_cancelled: number }>('billing.cancel_subscription', { tenantId }),
+  // Linkea a un tenant una suscripción MP huérfana (activa en MP, sin linkear en la app)
+  // por su preapproval_id. La EF verifica contra MP (authorized + plan nuestro + no reclamada)
+  // y cancela una anterior distinta antes de activar.
+  linkSubscription: (tenantId: string, preapprovalId: string) =>
+    callAdminApi<{ ok: true; tier: 'basico' | 'pro'; prev_cancel_error: string | null }>(
+      'billing.link_subscription', { tenantId, preapprovalId }),
 
   listLeads: () => callAdminApi<{ leads: Lead[] }>('crm.leads.list'),
   createLead: (a: { nombre: string; empresa?: string; email?: string; estado?: LeadEstado; valorEstimado?: number; origen?: string }) =>
