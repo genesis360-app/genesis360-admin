@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Plus, XCircle } from 'lucide-react'
+import { ArrowLeft, Plus, XCircle, Link2 } from 'lucide-react'
 import { adminApi, type TicketPrioridad } from '@/lib/adminApi'
 import { useAgent } from '@/auth/AgentContext'
 import { canSee } from '@/config/permissions'
@@ -35,6 +35,17 @@ export default function CustomerDetailPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['customer', id] }),
   })
 
+  // Linkear una suscripción MP huérfana por preapproval_id (activa en MP pero sin linkear
+  // en la app — pasa cuando el checkout-return falló / MP no manda external_reference).
+  const [linkForm, setLinkForm] = useState<{ open: boolean; preId: string }>({ open: false, preId: '' })
+  const linkSub = useMutation({
+    mutationFn: () => adminApi.linkSubscription(id, linkForm.preId.trim()),
+    onSuccess: () => {
+      setLinkForm({ open: false, preId: '' })
+      qc.invalidateQueries({ queryKey: ['customer', id] })
+    },
+  })
+
   if (isLoading) return <div className="text-sm text-muted">Cargando…</div>
   if (isError) return <div className="text-sm text-danger">{(error as Error).message}</div>
   if (!data) return null
@@ -66,6 +77,15 @@ export default function CustomerDetailPage() {
         <div className="flex items-center gap-2">
           {/* Cancelar suscripción — solo rol con módulo billing (admin/billing) y si no está ya cancelada.
               Cancela el preapproval en MP (fail-closed) vía admin-api → billing.cancel_subscription. */}
+          {/* Linkear suscripción huérfana por preapproval_id — solo rol con módulo billing.
+              La EF verifica contra MP (authorized + plan nuestro + no reclamada) antes de activar. */}
+          {canSee(agent.rol, 'billing') && (
+            <button
+              onClick={() => setLinkForm(f => ({ ...f, open: !f.open }))}
+              className="flex items-center gap-2 h-10 px-4 rounded-lg border border-outline text-sm font-semibold hover:bg-primary/10 disabled:opacity-50">
+              <Link2 size={16} /> Linkear suscripción
+            </button>
+          )}
           {canSee(agent.rol, 'billing') && tenant.subscription_status !== 'cancelled' && (
             <button
               disabled={cancelarSub.isPending}
@@ -86,6 +106,36 @@ export default function CustomerDetailPage() {
       </div>
       {cancelarSub.isError && <p className="text-sm text-danger mb-4">{(cancelarSub.error as Error).message}</p>}
       {cancelarSub.isSuccess && <p className="text-sm text-emerald-600 mb-4">Suscripción cancelada (MP + cuenta).</p>}
+
+      {linkForm.open && (
+        <div className="bg-surface rounded-xl shadow-card p-5 mb-6 space-y-3">
+          <div className="text-sm font-semibold text-ink">Linkear suscripción de Mercado Pago</div>
+          <p className="text-xs text-muted">
+            Pegá el <strong>preapproval_id</strong> de la suscripción activa en MP (Suscriptores → Ver detalles).
+            Se verifica que esté autorizada y sea de un plan nuestro, se cancela una anterior distinta (evita doble cobro) y se activa la cuenta.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input className="inp flex-1 font-mono" placeholder="preapproval_id (ej. b3b190925eb74d28…)"
+              value={linkForm.preId} onChange={e => setLinkForm(f => ({ ...f, preId: e.target.value }))} />
+            <button disabled={!linkForm.preId.trim() || linkSub.isPending}
+              onClick={() => {
+                if (confirm(`¿Linkear la suscripción ${linkForm.preId.trim()} a ${tenant.nombre ?? 'este cliente'} y activar la cuenta?`)) {
+                  linkSub.mutate()
+                }
+              }}
+              className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-600 disabled:opacity-50">
+              {linkSub.isPending ? 'Linkeando…' : 'Linkear y activar'}
+            </button>
+          </div>
+          {linkSub.isError && <p className="text-sm text-danger">{(linkSub.error as Error).message}</p>}
+          {linkSub.isSuccess && (
+            <p className="text-sm text-emerald-600">
+              Suscripción linkeada y cuenta activada ({linkSub.data.tier}).
+              {linkSub.data.prev_cancel_error ? ' ⚠️ No se pudo cancelar una suscripción anterior — revisá el panel de MP.' : ''}
+            </p>
+          )}
+        </div>
+      )}
 
       {ticketForm.open && (
         <div className="bg-surface rounded-xl shadow-card p-5 mb-6 space-y-3">
