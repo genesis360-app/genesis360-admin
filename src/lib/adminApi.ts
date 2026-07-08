@@ -51,6 +51,17 @@ export interface TicketRow {
 export interface TicketMensaje { id: string; autor_tipo: string; autor_id: string | null; cuerpo: string; created_at: string }
 export interface TicketDetail { ticket: TicketRow & Record<string, unknown>; mensajes: TicketMensaje[] }
 
+export type MedioPagoManual = 'transferencia' | 'efectivo' | 'tarjeta_mp' | 'otro'
+export interface ManualTenantRow {
+  id: string; nombre: string | null; plan_tier: string | null; subscription_status: string
+  manual_monto_mensual: number | null; manual_paid_until: string | null
+}
+export interface ManualPagoRow {
+  id: string; monto: number; medio: MedioPagoManual; referencia: string | null
+  periodo_desde: string; periodo_hasta: string; registrado_por: string | null
+  mp_payment_id: string | null; notas: string | null; created_at: string
+}
+
 export const adminApi = {
   whoami: () => callAdminApi<{ agent: Agent }>('auth.whoami'),
   changePassword: (password: string) => callAdminApi<{ ok: true }>('auth.change_password', { password }),
@@ -78,6 +89,16 @@ export const adminApi = {
   linkSubscription: (tenantId: string, preapprovalId: string) =>
     callAdminApi<{ ok: true; tier: 'basico' | 'pro'; prev_cancel_error: string | null }>(
       'billing.link_subscription', { tenantId, preapprovalId }),
+
+  // Pago manual (billing_mode='manual') — plan aprobado 2026-07-08.
+  listManualTenants: () => callAdminApi<{ tenants: ManualTenantRow[] }>('billing.manual_tenants_list'),
+  manualPaymentHistory: (tenantId: string) =>
+    callAdminApi<{ pagos: ManualPagoRow[] }>('billing.manual_history', { tenantId }),
+  recordManualPayment: (a: { tenantId: string; monto: number; medio: MedioPagoManual; referencia?: string; notas?: string }) =>
+    callAdminApi<{ ok: true; manual_paid_until: string }>('billing.manual_record_payment', a),
+  // Facturación automática de plataforma (Fede) — techo de categoría monotributo.
+  platformFacturasStats: () =>
+    callAdminApi<{ facturado_anio_actual: number; cantidad: number }>('billing.platform_facturas_stats'),
 
   listLeads: () => callAdminApi<{ leads: Lead[] }>('crm.leads.list'),
   createLead: (a: { nombre: string; empresa?: string; email?: string; estado?: LeadEstado; valorEstimado?: number; origen?: string }) =>
