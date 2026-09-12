@@ -36,9 +36,53 @@ export async function callAdminApi<T = unknown>(
 }
 
 // ── Tipos ──
-export interface CustomerRow { id: string; nombre: string | null; created_at: string }
+/** Fila de la lista de clientes (RPC `fn_admin_tenants_overview`, mig 410). */
+export interface CustomerRow {
+  id: string
+  nombre: string | null
+  created_at: string
+  subscription_status: string | null
+  trial_ends_at: string | null
+  plan_tier: string | null
+  billing_mode: string | null
+  modo_operacion: string | null
+  pais: string | null
+  tipo_comercio: string | null
+  delete_scheduled_at: string | null
+  /** El DUEÑO más antiguo del negocio — el que lo creó. */
+  dueno_nombre: string | null
+  dueno_email: string | null
+  usuarios: number
+  ultimo_acceso: string | null
+}
+
+/** Una cuenta de acceso de un negocio (RPC `fn_admin_tenant_cuentas`, mig 410). */
+export interface CuentaTenant {
+  id: string
+  email: string | null
+  rol: string
+  nombre_display: string | null
+  activo: boolean
+  created_at: string
+  ultimo_acceso: string | null
+  /** Agente del panel de soporte: comparte el pool de `auth.users` con los clientes. */
+  es_agente: boolean
+}
+
+export interface AuditEntry {
+  id: string
+  agent_email: string | null
+  action: string
+  target_tenant_id: string | null
+  metadata: Record<string, unknown> | null
+  created_at: string
+  tenants?: { nombre: string | null } | null
+}
 export interface Metrics {
   total: number; altas30: number; enTrial: number; ticketsAbiertos: number; basico: number; avanzado: number; mrr: number
+  /** Lo que requiere atención hoy. `enTrial` cuenta SOLO las pruebas vigentes: el campo
+      `subscription_status` se queda en 'trial' aunque la fecha haya pasado. */
+  trialPorVencer: number; trialVencido: number; bajasProgramadas: number; sinActividad30: number
 }
 export interface PlanRow { nombre: string; precio_mensual: number; tenants: number; subtotal: number }
 export type LeadEstado = 'lead' | 'qualified' | 'demo' | 'trial' | 'won' | 'lost'
@@ -48,14 +92,22 @@ export interface Lead {
 }
 export interface CustomerDetail {
   tenant: {
-    id: string; nombre: string | null; plan_id: string | null; modo_operacion: string | null
+    id: string; nombre: string | null; plan_id: string | null; plan_tier: string | null
+    billing_mode: string | null; modo_operacion: string | null
     created_at: string; trial_ends_at: string | null; inicio_actividades: string | null
-    subscription_status: string | null
+    subscription_status: string | null; subscription_period_end: string | null
+    delete_scheduled_at: string | null
+    pais: string | null; tipo_comercio: string | null; moneda: string | null
+    mp_subscription_id: string | null
+    // Estado fiscal: lo primero que se pregunta cuando un cliente "no puede facturar".
+    cuit: string | null; condicion_iva_emisor: string | null; razon_social_fiscal: string | null
+    facturacion_habilitada: boolean | null; afip_produccion: boolean | null; afip_provider: string | null
   }
   stats: {
     usuarios: number; sucursales: number; ventas_total: number; ventas_30d: number
-    tickets_abiertos: number; ultima_venta_at: string | null
+    tickets_abiertos: number; ultima_venta_at: string | null; comprobantes_con_cae: number
   }
+  cuentas: CuentaTenant[]
   recent_sales: { numero: number; total: number; estado: string; created_at: string }[]
 }
 export type TicketEstado = 'abierto' | 'en_progreso' | 'esperando' | 'resuelto' | 'cerrado'
@@ -111,6 +163,17 @@ export const adminApi = {
 
   listCustomers: (q?: string) => callAdminApi<{ customers: CustomerRow[] }>('customers.list', { q }),
   getCustomer: (tenantId: string) => callAdminApi<CustomerDetail>('customers.get', { tenantId }),
+
+  // Herramientas de soporte sobre un cliente (solo rol admin; la EF lo re-valida).
+  extendTrial: (tenantId: string, dias: number) =>
+    callAdminApi<{ ok: true; trial_ends_at: string }>('customers.extend_trial', { tenantId, dias }),
+  resetPassword: (tenantId: string, email: string) =>
+    callAdminApi<{ ok: true; email: string }>('customers.reset_password', { tenantId, email }),
+
+  // El registro de lo que hizo el equipo. La tabla se escribía desde la mig 221 y no había
+  // ninguna pantalla para leerla.
+  listAudit: (f: { tenantId?: string; agentEmail?: string; action?: string; limit?: number } = {}) =>
+    callAdminApi<{ entries: AuditEntry[] }>('audit.list', f),
 
   listTickets: (f: { estado?: string; tenantId?: string; asignadoA?: 'me' } = {}) =>
     callAdminApi<{ tickets: TicketRow[] }>('support.tickets.list', f),

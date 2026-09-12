@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Contact, LifeBuoy, BarChart3, CreditCard, ShieldCheck, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, Users, Contact, LifeBuoy, BarChart3, CreditCard, ShieldCheck, ScrollText, type LucideIcon } from 'lucide-react'
 import type { ModuleKey } from './permissions'
 
 export interface NavItem {
@@ -17,4 +17,5 @@ export const NAV: NavItem[] = [
   { to: '/analytics', label: 'Analytics', icon: BarChart3, module: 'analytics' },
   { to: '/billing', label: 'Facturación', icon: CreditCard, module: 'billing' },
   { to: '/users', label: 'Usuarios', icon: ShieldCheck, module: 'users' },
+  { to: '/audit', label: 'Auditoría', icon: ScrollText, module: 'users' },
 ]
