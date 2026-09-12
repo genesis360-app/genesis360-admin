@@ -105,6 +105,12 @@ export interface NotaCliente {
   created_at: string
 }
 
+export interface AnalyticsOverview {
+  meses: { mes: string; altas: number; convirtieron: number }[]
+  embudo: { total: number; pagaron: number; activos: number; cancelados: number }
+  por_origen: { origen: string; leads: number; ganados: number; perdidos: number; valor: number }[]
+}
+
 export interface AuditEntry {
   id: string
   agent_email: string | null
@@ -133,7 +139,7 @@ export interface CustomerDetail {
     created_at: string; trial_ends_at: string | null; inicio_actividades: string | null
     subscription_status: string | null; subscription_period_end: string | null
     delete_scheduled_at: string | null
-    pais: string | null; tipo_comercio: string | null; moneda: string | null
+    pais: string | null; tipo_comercio: string | null; moneda: string | null; telefono: string | null
     mp_subscription_id: string | null
     // Estado fiscal: lo primero que se pregunta cuando un cliente "no puede facturar".
     cuit: string | null; condicion_iva_emisor: string | null; razon_social_fiscal: string | null
@@ -252,6 +258,10 @@ export const adminApi = {
   // Facturación automática de plataforma (Fede) — techo de categoría monotributo.
   platformFacturasStats: () =>
     callAdminApi<{ facturado_anio_actual: number; cantidad: number }>('billing.platform_facturas_stats'),
+
+  // Embudo real (altas, conversión, churn, origen). El CAC necesita la inversión publicitaria,
+  // que todavía no se carga en ningún lado.
+  analyticsOverview: () => callAdminApi<AnalyticsOverview>('analytics.overview'),
 
   listLeads: () => callAdminApi<{ leads: Lead[] }>('crm.leads.list'),
   createLead: (a: { nombre: string; empresa?: string; email?: string; estado?: LeadEstado; valorEstimado?: number; origen?: string }) =>

@@ -1,17 +1,19 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { LogOut, KeyRound } from 'lucide-react'
+import { LogOut, KeyRound, ShieldCheck } from 'lucide-react'
 import { NAV } from '@/config/nav'
 import { canSee, ROL_LABEL } from '@/config/permissions'
 import { useAgent } from '@/auth/AgentContext'
 import { supabase } from '@/lib/supabase'
 import { ChangePasswordModal } from '@/components/ChangePasswordModal'
 import { BusquedaGlobal } from '@/components/BusquedaGlobal'
+import { DosFactoresModal } from '@/components/DosFactoresModal'
 
 export function AdminLayout() {
   const agent = useAgent()
   const items = NAV.filter(item => canSee(agent.rol, item.module))
   const [pwOpen, setPwOpen] = useState(false)
+  const [mfaOpen, setMfaOpen] = useState(false)
 
   return (
     <div className="min-h-screen flex bg-canvas text-ink">
@@ -58,6 +60,12 @@ export function AdminLayout() {
             <KeyRound size={18} /> Cambiar contraseña
           </button>
           <button
+            onClick={() => setMfaOpen(true)}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:bg-surface-low transition-colors"
+          >
+            <ShieldCheck size={18} /> Verificación en 2 pasos
+          </button>
+          <button
             onClick={() => supabase.auth.signOut()}
             className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-muted hover:bg-surface-low transition-colors"
           >
@@ -66,6 +74,7 @@ export function AdminLayout() {
         </div>
       </aside>
       {pwOpen && <ChangePasswordModal onClose={() => setPwOpen(false)} />}
+      {mfaOpen && <DosFactoresModal onClose={() => setMfaOpen(false)} />}
 
       <main className="flex-1 min-w-0 px-8 py-6 overflow-auto">
         <Outlet />

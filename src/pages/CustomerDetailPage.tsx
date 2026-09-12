@@ -289,6 +289,12 @@ export default function CustomerDetailPage() {
             <dd className="text-ink">{tenant.plan_tier ?? tenant.plan_id ?? 'Free'}{tenant.billing_mode === 'manual' ? ' · pago manual' : ''}</dd>
             <dt className="text-muted">Moneda</dt>
             <dd className="text-ink">{tenant.moneda ?? 'ARS'}</dd>
+            <dt className="text-muted">Teléfono</dt>
+            <dd className="text-ink">
+              {tenant.telefono
+                ? <a href={`tel:${tenant.telefono}`} className="text-primary hover:underline">{tenant.telefono}</a>
+                : <span className="text-muted">— sin cargar</span>}
+            </dd>
             <dt className="text-muted">Facturación</dt>
             <dd className="text-ink">
               {tenant.facturacion_habilitada
