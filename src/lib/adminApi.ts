@@ -5,6 +5,18 @@ import type { Agent, Rol } from '@/config/permissions'
  * Capa de datos del panel. TODO el acceso cross-tenant pasa por la Edge Function
  * `admin-api` (service_role), que valida agente + AUTORIZA por rol + audita.
  */
+export class AdminApiError extends Error {
+  /** Cuerpo completo de la respuesta de la EF. Algunas acciones mandan datos junto al error
+      (p.ej. `requiere_confirmacion_fiscal` al dar de baja un negocio con comprobantes con CAE),
+      y la UI los necesita para pedir el segundo sí explícito en vez de solo mostrar el texto. */
+  payload: Record<string, unknown>
+  constructor(message: string, payload: Record<string, unknown> = {}) {
+    super(message)
+    this.name = 'AdminApiError'
+    this.payload = payload
+  }
+}
+
 export async function callAdminApi<T = unknown>(
   action: string,
   payload: Record<string, unknown> = {},
@@ -12,8 +24,13 @@ export async function callAdminApi<T = unknown>(
   const { data, error } = await supabase.functions.invoke('admin-api', { body: { action, ...payload } })
   if (error) {
     let msg = error.message
-    try { const ctx = await (error as any).context?.json?.(); if (ctx?.error) msg = ctx.error } catch { /* noop */ }
-    throw new Error(msg)
+    let body: Record<string, unknown> = {}
+    try {
+      const ctx = await (error as any).context?.json?.()
+      if (ctx && typeof ctx === 'object') body = ctx
+      if (ctx?.error) msg = ctx.error
+    } catch { /* noop */ }
+    throw new AdminApiError(msg, body)
   }
   return data as T
 }
@@ -62,6 +79,31 @@ export interface ManualPagoRow {
   mp_payment_id: string | null; notas: string | null; created_at: string
 }
 
+/** Qué se pierde si se borra el negocio. La foto se toma ANTES del DELETE: después del
+    CASCADE (~140 FK) no queda nada que contar. */
+export interface InventarioTenant {
+  usuarios: number; sucursales: number; ventas: number; productos: number
+  clientes: number; gastos: number; movimientos: number
+  comprobantes_fiscales_con_cae: number
+}
+export interface CuentaAuth {
+  id: string; rol: string; nombre: string | null; email: string | null
+  /** Agente del panel de soporte: vive en el mismo pool de auth y NUNCA se borra por arrastre. */
+  es_agente: boolean
+}
+export interface DeletePreview {
+  tenant: { id: string; nombre: string | null; subscription_status: string | null; delete_scheduled_at: string | null }
+  inventario: InventarioTenant
+  cuentas: CuentaAuth[]
+  /** El negocio todavía puede generar cobros en Mercado Pago. */
+  cobro_vivo: boolean
+}
+export interface PurgeResult {
+  ok: true; purgado: string | null; inventario: InventarioTenant; mp_cancelled: number
+  auth_users_borrados: { id: string; email: string | null }[]
+  auth_users_omitidos: { id: string; email: string | null; motivo: string }[]
+}
+
 export const adminApi = {
   whoami: () => callAdminApi<{ agent: Agent }>('auth.whoami'),
   changePassword: (password: string) => callAdminApi<{ ok: true }>('auth.change_password', { password }),
@@ -105,6 +147,20 @@ export const adminApi = {
     callAdminApi<{ ok: true; id: string }>('crm.leads.create', a),
   updateLead: (a: { leadId: string; estado?: LeadEstado; nombre?: string; valorEstimado?: number }) =>
     callAdminApi<{ ok: true }>('crm.leads.update', a),
+
+  // ── Baja de un negocio (solo rol admin; la EF lo re-valida) ──────────────────
+  // Dos caminos, igual que en la app: programar con grace period, o purgar YA. Antes de
+  // cualquiera de los dos, la EF cancela la suscripción en Mercado Pago fail-closed — si MP no
+  // confirma, no se borra nada (si no, se le seguiría cobrando a un negocio que ya no existe).
+  deletePreview: (tenantId: string) =>
+    callAdminApi<DeletePreview>('customers.delete_preview', { tenantId }),
+  scheduleDelete: (a: { tenantId: string; confirmNombre: string; dias?: number; confirmFiscal?: boolean }) =>
+    callAdminApi<{ ok: true; delete_scheduled_at: string; mp_cancelled: number; aviso_mp: string | null }>(
+      'customers.schedule_delete', a),
+  cancelDelete: (tenantId: string) =>
+    callAdminApi<{ ok: true; tenant: string }>('customers.cancel_delete', { tenantId }),
+  purgeNow: (a: { tenantId: string; confirmNombre: string; confirmFiscal?: boolean; borrarUsuariosAuth?: boolean }) =>
+    callAdminApi<PurgeResult>('customers.purge_now', a),
 
   listAgents: () => callAdminApi<{ agents: Agent[] }>('agents.list'),
   createAgent: (a: { email: string; nombre?: string; rol: Rol; password: string }) =>

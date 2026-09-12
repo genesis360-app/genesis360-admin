@@ -5,6 +5,7 @@ import { ArrowLeft, Plus, XCircle, Link2 } from 'lucide-react'
 import { adminApi, type TicketPrioridad } from '@/lib/adminApi'
 import { useAgent } from '@/auth/AgentContext'
 import { canSee } from '@/config/permissions'
+import BajaTenantPanel from '@/components/BajaTenantPanel'
 
 const fmtMoney = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleDateString('es-AR') : '—')
@@ -195,6 +196,10 @@ export default function CustomerDetailPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Baja del negocio: SOLO rol admin. `customers` lo tiene también `support`, y borrar un
+          negocio entero no es una tarea de soporte — la EF exige `admin` igual, esto es UX. */}
+      {agent.rol === 'admin' && <BajaTenantPanel tenantId={id} nombre={tenant.nombre} />}
     </div>
   )
 }
