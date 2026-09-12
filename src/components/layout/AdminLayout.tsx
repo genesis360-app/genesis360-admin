@@ -6,6 +6,7 @@ import { canSee, ROL_LABEL } from '@/config/permissions'
 import { useAgent } from '@/auth/AgentContext'
 import { supabase } from '@/lib/supabase'
 import { ChangePasswordModal } from '@/components/ChangePasswordModal'
+import { BusquedaGlobal } from '@/components/BusquedaGlobal'
 
 export function AdminLayout() {
   const agent = useAgent()
@@ -14,11 +15,19 @@ export function AdminLayout() {
 
   return (
     <div className="min-h-screen flex bg-canvas text-ink">
+      {/* Ctrl/⌘ + K desde cualquier pantalla */}
+      <BusquedaGlobal />
       {/* Sidebar 280px (design system Stitch) */}
       <aside className="w-[280px] shrink-0 bg-surface border-r border-outline/40 flex flex-col">
         <div className="px-6 py-5 border-b border-outline/30">
           <div className="text-lg font-bold text-ink">Genesis360</div>
           <div className="text-xs text-muted">Panel interno</div>
+          <div className="mt-2 text-[11px] text-muted flex items-center gap-1">
+            <kbd className="px-1.5 py-0.5 rounded border border-outline bg-surface-low font-mono">Ctrl</kbd>
+            <span>+</span>
+            <kbd className="px-1.5 py-0.5 rounded border border-outline bg-surface-low font-mono">K</kbd>
+            <span>para buscar</span>
+          </div>
         </div>
         <nav className="flex-1 px-3 py-4 space-y-1">
           {items.map(({ to, label, icon: Icon, module }) => (

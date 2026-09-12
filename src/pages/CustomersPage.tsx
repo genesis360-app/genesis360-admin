@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Search, ChevronRight, AlertTriangle, Trash2 } from 'lucide-react'
+import { Search, ChevronRight, AlertTriangle, Trash2, Download } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { adminApi, type CustomerRow } from '@/lib/adminApi'
 
@@ -51,6 +51,31 @@ const FILTROS: { id: Estado | 'todos'; label: string }[] = [
   { id: 'cancelada', label: 'Canceladas' },
 ]
 
+/**
+ * Exporta lo que se está viendo (con el filtro y la búsqueda aplicados), no toda la base: si el
+ * agente filtró "prueba vencida" es porque quiere trabajar ESA lista.
+ */
+function exportarCsv(filas: CustomerRow[]) {
+  const cols = ['nombre', 'dueno_nombre', 'dueno_email', 'estado', 'usuarios', 'ultimo_acceso', 'pais', 'modo_operacion', 'alta', 'id']
+  const esc = (v: unknown) => {
+    const t = v == null ? '' : String(v)
+    // Comillas y separadores escapados: un nombre de negocio con coma parte la fila.
+    return /[",;\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
+  }
+  const filasCsv = filas.map(c => [
+    c.nombre, c.dueno_nombre, c.dueno_email, estadoDe(c).label, c.usuarios,
+    c.ultimo_acceso ? new Date(c.ultimo_acceso).toLocaleDateString('es-AR') : '',
+    c.pais, c.modo_operacion, new Date(c.created_at).toLocaleDateString('es-AR'), c.id,
+  ].map(esc).join(','))
+  // BOM para que Excel en Windows no rompa los acentos.
+  const blob = new Blob(['\ufeff' + [cols.join(','), ...filasCsv].join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `clientes-genesis360-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
 export default function CustomersPage() {
   const navigate = useNavigate()
   const [q, setQ] = useState('')
@@ -79,6 +104,13 @@ export default function CustomersPage() {
             className="w-full h-10 pl-9 pr-3 rounded-lg border border-outline bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
+        <button
+          onClick={() => exportarCsv(customers)}
+          disabled={customers.length === 0}
+          title="Exportar lo que estás viendo"
+          className="flex items-center gap-2 h-10 px-3 rounded-lg border border-outline text-sm font-medium text-muted hover:bg-primary/10 disabled:opacity-50">
+          <Download size={15} /> CSV
+        </button>
         <div className="flex gap-1">
           {FILTROS.map(f => (
             <button key={f.id} onClick={() => setFiltro(f.id)}

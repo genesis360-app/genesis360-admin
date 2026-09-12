@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Plus, XCircle, Link2, CalendarPlus, KeyRound, Mail } from 'lucide-react'
+import { ArrowLeft, Plus, XCircle, Link2, CalendarPlus, KeyRound, Mail, Pin, Trash2, LifeBuoy, AlertTriangle } from 'lucide-react'
 import { adminApi, type TicketPrioridad } from '@/lib/adminApi'
 import { useAgent } from '@/auth/AgentContext'
 import { canSee } from '@/config/permissions'
@@ -56,6 +56,35 @@ export default function CustomerDetailPage() {
   })
   const resetPass = useMutation({
     mutationFn: (email: string) => adminApi.resetPassword(id, email),
+  })
+
+  // Los tickets de ESTE cliente, acá. Antes había que ir a Soporte y filtrar a mano para ver el
+  // historial de quien te está escribiendo.
+  const { data: ticketsData } = useQuery({
+    queryKey: ['customer-tickets', id],
+    queryFn: () => adminApi.listTickets({ tenantId: id }),
+  })
+
+  const { data: actividadData } = useQuery({
+    queryKey: ['customer-activity', id],
+    queryFn: () => adminApi.customerActivity(id),
+  })
+
+  // Notas internas (mig 411).
+  const { data: notasData } = useQuery({
+    queryKey: ['customer-notes', id],
+    queryFn: () => adminApi.listNotes(id),
+  })
+  const [notaTexto, setNotaTexto] = useState('')
+  const [notaFijada, setNotaFijada] = useState(false)
+  const refrescarNotas = () => qc.invalidateQueries({ queryKey: ['customer-notes', id] })
+  const crearNota = useMutation({
+    mutationFn: () => adminApi.createNote(id, notaTexto.trim(), notaFijada),
+    onSuccess: () => { setNotaTexto(''); setNotaFijada(false); refrescarNotas() },
+  })
+  const borrarNota = useMutation({
+    mutationFn: (noteId: string) => adminApi.deleteNote(noteId),
+    onSuccess: refrescarNotas,
   })
 
   if (isLoading) return <div className="text-sm text-muted">Cargando…</div>
@@ -284,6 +313,150 @@ export default function CustomerDetailPage() {
               No puede facturar porque le falta {[!tenant.cuit && 'el CUIT', !tenant.condicion_iva_emisor && 'la condición de IVA'].filter(Boolean).join(' y ')}:
               la app bloquea habilitar la facturación sin esos datos (la condición de IVA decide si el comprobante sale A, B o C).
             </p>
+          )}
+        </div>
+      </div>
+
+      {/* Uso contra el límite del plan: distingue al cliente TRABADO (no puede sumar un usuario
+          más) del que simplemente no usa la app. Desde afuera se ven igual y son dos
+          conversaciones opuestas — una es soporte, la otra es venta. */}
+      <div className="bg-surface rounded-xl shadow-card p-5 mb-6">
+        <div className="text-sm font-semibold text-ink mb-3">Uso del plan</div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {data.limites.map(l => {
+            const sinLimite = l.limite === -1
+            const pct = sinLimite ? 0 : Math.min(100, Math.round((l.usado / Math.max(1, l.limite)) * 100))
+            const lleno = !sinLimite && l.usado >= l.limite
+            return (
+              <div key={l.dim}>
+                <div className="flex items-baseline justify-between text-sm">
+                  <span className="text-muted">{l.label}</span>
+                  <span className={lleno ? 'text-danger font-semibold' : 'text-ink'}>
+                    {l.usado}{sinLimite ? '' : ` / ${l.limite}`}
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-outline/30 mt-1.5 overflow-hidden">
+                  <div className={`h-full ${lleno ? 'bg-danger' : 'bg-primary'}`} style={{ width: `${sinLimite ? 0 : pct}%` }} />
+                </div>
+                {lleno && <div className="text-xs text-danger mt-1">Al tope: no puede dar de alta más</div>}
+                {sinLimite && <div className="text-xs text-muted mt-1">Sin límite</div>}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4 mb-6">
+        {/* Notas internas — invisibles para el cliente (RLS sin policies, mig 411). */}
+        <div className="bg-surface rounded-xl shadow-card overflow-hidden">
+          <div className="px-5 py-3 text-sm font-semibold text-ink border-b border-outline/30">
+            Notas internas <span className="font-normal text-muted">(el cliente no las ve)</span>
+          </div>
+          <div className="p-4 space-y-2">
+            <textarea
+              value={notaTexto} onChange={e => setNotaTexto(e.target.value)}
+              placeholder="Ej: llamó por la impresora fiscal, pidió que lo llamemos el lunes"
+              className="inp w-full h-20 py-2" />
+            <div className="flex items-center gap-3">
+              <button disabled={!notaTexto.trim() || crearNota.isPending} onClick={() => crearNota.mutate()}
+                className="h-9 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-600 disabled:opacity-50">
+                {crearNota.isPending ? 'Guardando…' : 'Agregar nota'}
+              </button>
+              <label className="flex items-center gap-1.5 text-xs text-muted">
+                <input type="checkbox" checked={notaFijada} onChange={e => setNotaFijada(e.target.checked)} />
+                Fijar arriba
+              </label>
+            </div>
+            {crearNota.isError && <p className="text-sm text-danger">{(crearNota.error as Error).message}</p>}
+          </div>
+          <div className="divide-y divide-outline/20 max-h-72 overflow-y-auto">
+            {(notasData?.notes ?? []).map(n => (
+              <div key={n.id} className="px-5 py-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-ink whitespace-pre-wrap break-words">{n.cuerpo}</p>
+                  <p className="text-xs text-muted mt-1 flex items-center gap-1">
+                    {n.fijada && <Pin size={11} className="text-primary" />}
+                    {n.agent_email ?? '—'} · {new Date(n.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
+                  </p>
+                </div>
+                <button title="Borrar nota" onClick={() => { if (confirm('¿Borrar esta nota?')) borrarNota.mutate(n.id) }}
+                  className="shrink-0 text-muted hover:text-danger">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+            {(notasData?.notes ?? []).length === 0 && (
+              <div className="px-5 py-6 text-sm text-muted">Sin notas todavía</div>
+            )}
+          </div>
+          {borrarNota.isError && <p className="px-5 py-2 text-sm text-danger">{(borrarNota.error as Error).message}</p>}
+        </div>
+
+        {/* Tickets de este cliente */}
+        <div className="bg-surface rounded-xl shadow-card overflow-hidden">
+          <div className="px-5 py-3 text-sm font-semibold text-ink border-b border-outline/30 flex items-center gap-2">
+            <LifeBuoy size={15} /> Tickets de este cliente
+          </div>
+          <div className="divide-y divide-outline/20 max-h-96 overflow-y-auto">
+            {(ticketsData?.tickets ?? []).map(t => (
+              <button key={t.id} onClick={() => navigate(`/support?ticket=${t.id}`)}
+                className="w-full text-left px-5 py-3 hover:bg-surface-low transition-colors">
+                <div className="text-ink truncate">{t.asunto}</div>
+                <div className="text-xs text-muted">
+                  {t.estado} · {t.prioridad} · {fmtDate(t.updated_at)}
+                </div>
+              </button>
+            ))}
+            {(ticketsData?.tickets ?? []).length === 0 && (
+              <div className="px-5 py-6 text-sm text-muted">Sin tickets</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 🛑 Notas de crédito que AFIP rechazó y siguen sin resolverse. La devolución ya ocurrió y
+          el comprobante que la respalda no existe: si hay una acá, es lo primero a mirar. */}
+      {(actividadData?.afip_pendientes ?? []).length > 0 && (
+        <div className="bg-surface rounded-xl shadow-card border border-danger/30 p-5 mb-6">
+          <div className="text-sm font-semibold text-danger mb-2 flex items-center gap-2">
+            <AlertTriangle size={15} /> Notas de crédito sin emitir en AFIP
+          </div>
+          <div className="space-y-2">
+            {(actividadData?.afip_pendientes ?? []).map(n => (
+              <div key={n.id} className="text-sm">
+                <div className="text-ink">
+                  {n.tipo_comprobante ?? 'NC'} · {n.intentos} intento{n.intentos === 1 ? '' : 's'}
+                  {n.requiere_reconciliacion_manual && (
+                    <span className="ml-2 text-xs font-semibold text-danger">requiere reconciliación manual</span>
+                  )}
+                </div>
+                <div className="text-xs text-muted break-words">{n.ultimo_error ?? 'sin detalle'} · {fmtDate(n.created_at)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Timeline: responde "¿qué hizo antes de que se rompiera?" */}
+      <div className="bg-surface rounded-xl shadow-card overflow-hidden mb-6">
+        <div className="px-5 py-3 text-sm font-semibold text-ink border-b border-outline/30">
+          Actividad reciente <span className="font-normal text-muted">(últimas 50 acciones)</span>
+        </div>
+        <div className="divide-y divide-outline/20 max-h-80 overflow-y-auto">
+          {(actividadData?.actividad ?? []).map(a => (
+            <div key={a.id} className="px-5 py-2.5 text-sm">
+              <span className="text-ink">
+                {a.usuario_nombre ?? 'alguien'} <span className="text-muted">{a.accion ?? ''}</span> {a.entidad ?? ''}
+                {a.entidad_nombre ? ` "${a.entidad_nombre}"` : ''}
+              </span>
+              {a.campo && (
+                <span className="text-xs text-muted"> · {a.campo}: {a.valor_anterior ?? '—'} → {a.valor_nuevo ?? '—'}</span>
+              )}
+              <span className="text-xs text-muted"> · {new Date(a.created_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</span>
+            </div>
+          ))}
+          {(actividadData?.actividad ?? []).length === 0 && (
+            <div className="px-5 py-6 text-sm text-muted">Sin actividad registrada</div>
           )}
         </div>
       </div>

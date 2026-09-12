@@ -36,6 +36,22 @@ export default function BillingPage() {
 
   const tenantsManuales = manualData?.tenants ?? []
 
+  // Los vencidos primero y después por vencimiento más cercano: lo que hay que llamar hoy queda
+  // arriba, sin depender de que alguien lea toda la tabla.
+  const DIA = 86400000
+  const vencimiento = (t: { manual_paid_until: string | null }) =>
+    t.manual_paid_until ? new Date(t.manual_paid_until).getTime() : 0   // sin fecha = nunca pagó
+  const manualesOrdenados = [...tenantsManuales].sort((a, b) => vencimiento(a) - vencimiento(b))
+  const resumenManual = manualesOrdenados.reduce(
+    (acc, t) => {
+      const v = vencimiento(t)
+      if (v < Date.now()) acc.vencidos++
+      else if (v < Date.now() + 7 * DIA) acc.porVencer++
+      return acc
+    },
+    { vencidos: 0, porVencer: 0 },
+  )
+
   return (
     <div>
       <PageHeader title="Facturación" subtitle="Suscripciones, pagos manuales y facturación de plataforma" />
@@ -83,7 +99,21 @@ export default function BillingPage() {
 
           {/* Pagos manuales (billing_mode='manual') — plan aprobado 2026-07-08 */}
           <div className="bg-surface rounded-xl shadow-card overflow-hidden">
-            <div className="px-5 py-3 text-sm font-semibold text-ink border-b border-outline/30">Pagos manuales</div>
+            <div className="px-5 py-3 border-b border-outline/30 flex flex-wrap items-center gap-3">
+              <span className="text-sm font-semibold text-ink">Pagos manuales</span>
+              {/* Antes había que escanear la columna de fechas para darse cuenta de quién dejó de
+                  pagar. Es churn silencioso: si nadie mira, el cliente sigue usando la app gratis
+                  o se va sin que nadie lo llame. */}
+              {resumenManual.vencidos > 0 && (
+                <span className="text-xs font-semibold text-danger">{resumenManual.vencidos} vencido{resumenManual.vencidos === 1 ? '' : 's'}</span>
+              )}
+              {resumenManual.porVencer > 0 && (
+                <span className="text-xs font-semibold text-amber-600">{resumenManual.porVencer} vence{resumenManual.porVencer === 1 ? '' : 'n'} en ≤7 días</span>
+              )}
+              {resumenManual.vencidos === 0 && resumenManual.porVencer === 0 && tenantsManuales.length > 0 && (
+                <span className="text-xs text-muted">todos al día</span>
+              )}
+            </div>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs font-semibold text-muted border-b border-outline/30">
@@ -93,7 +123,7 @@ export default function BillingPage() {
                 </tr>
               </thead>
               <tbody>
-                {tenantsManuales.map(t => {
+                {manualesOrdenados.map(t => {
                   const vencido = t.manual_paid_until ? new Date(t.manual_paid_until) < new Date() : true
                   return (
                     <Fragment key={t.id}>

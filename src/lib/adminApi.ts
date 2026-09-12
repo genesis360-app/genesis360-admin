@@ -69,6 +69,42 @@ export interface CuentaTenant {
   es_agente: boolean
 }
 
+/** Uso contra el límite del plan. `limite === -1` = sin límite (enterprise). */
+export interface LimitePlan { dim: string; label: string; usado: number; limite: number }
+
+export interface ActividadEntry {
+  id: string
+  usuario_nombre: string | null
+  entidad: string | null
+  entidad_nombre: string | null
+  accion: string | null
+  campo: string | null
+  valor_anterior: string | null
+  valor_nuevo: string | null
+  pagina: string | null
+  created_at: string
+}
+
+/** Nota de crédito que no se pudo emitir en AFIP y sigue sin resolverse. */
+export interface AfipPendiente {
+  id: string
+  venta_id: string | null
+  tipo_comprobante: string | null
+  intentos: number
+  ultimo_error: string | null
+  requiere_reconciliacion_manual: boolean
+  created_at: string
+}
+
+/** Nota interna del equipo sobre un cliente (mig 411). Invisible para el cliente. */
+export interface NotaCliente {
+  id: string
+  cuerpo: string
+  fijada: boolean
+  agent_email: string | null
+  created_at: string
+}
+
 export interface AuditEntry {
   id: string
   agent_email: string | null
@@ -107,6 +143,7 @@ export interface CustomerDetail {
     usuarios: number; sucursales: number; ventas_total: number; ventas_30d: number
     tickets_abiertos: number; ultima_venta_at: string | null; comprobantes_con_cae: number
   }
+  limites: LimitePlan[]
   cuentas: CuentaTenant[]
   recent_sales: { numero: number; total: number; estado: string; created_at: string }[]
 }
@@ -169,6 +206,17 @@ export const adminApi = {
     callAdminApi<{ ok: true; trial_ends_at: string }>('customers.extend_trial', { tenantId, dias }),
   resetPassword: (tenantId: string, email: string) =>
     callAdminApi<{ ok: true; email: string }>('customers.reset_password', { tenantId, email }),
+
+  // Qué hizo el cliente últimamente y qué se le está rompiendo.
+  customerActivity: (tenantId: string) =>
+    callAdminApi<{ actividad: ActividadEntry[]; afip_pendientes: AfipPendiente[] }>('customers.activity', { tenantId }),
+
+  // Notas internas sobre el cliente (mig 411). Un ticket es un problema con estado; una nota es
+  // contexto compartido entre agentes.
+  listNotes: (tenantId: string) => callAdminApi<{ notes: NotaCliente[] }>('customers.notes.list', { tenantId }),
+  createNote: (tenantId: string, cuerpo: string, fijada = false) =>
+    callAdminApi<{ ok: true; id: string }>('customers.notes.create', { tenantId, cuerpo, fijada }),
+  deleteNote: (noteId: string) => callAdminApi<{ ok: true }>('customers.notes.delete', { noteId }),
 
   // El registro de lo que hizo el equipo. La tabla se escribía desde la mig 221 y no había
   // ninguna pantalla para leerla.
