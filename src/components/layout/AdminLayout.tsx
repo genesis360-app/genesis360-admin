@@ -32,9 +32,11 @@ export function AdminLayout() {
           </div>
         </div>
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {items.map(({ to, label, icon: Icon, module }) => (
+          {items.map(({ to, label, icon: Icon }) => (
             <NavLink
-              key={module}
+              // Se keyea por RUTA, no por módulo: "Usuarios" y "Auditoría" comparten el módulo
+              // `users` (las dos son solo-admin) y React se quejaba de claves duplicadas.
+              key={to}
               to={to}
               end={to === '/'}
               className={({ isActive }) =>
