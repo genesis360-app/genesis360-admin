@@ -11,6 +11,7 @@ import SupportPage from '@/pages/SupportPage'
 import AnalyticsPage from '@/pages/AnalyticsPage'
 import BillingPage from '@/pages/BillingPage'
 import UsersPage from '@/pages/UsersPage'
+import AuditPage from '@/pages/AuditPage'
 
 export default function App() {
   return (
@@ -26,6 +27,9 @@ export default function App() {
             <Route path="/analytics" element={<RequireModule module="analytics"><AnalyticsPage /></RequireModule>} />
             <Route path="/billing" element={<RequireModule module="billing"><BillingPage /></RequireModule>} />
             <Route path="/users" element={<RequireModule module="users"><UsersPage /></RequireModule>} />
+            {/* Auditoría: el módulo es `users` (solo admin) — es el registro de lo que hizo el
+                equipo, no data de un cliente. */}
+            <Route path="/audit" element={<RequireModule module="users"><AuditPage /></RequireModule>} />
           </Route>
         </Routes>
       </AgentProvider>

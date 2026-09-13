@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { PageHeader } from '@/components/PageHeader'
 import { adminApi, type TicketEstado, type TicketPrioridad } from '@/lib/adminApi'
@@ -13,7 +14,10 @@ const fmt = (s: string) => new Date(s).toLocaleString('es-AR', { day: '2-digit',
 export default function SupportPage() {
   const qc = useQueryClient()
   const [filtro, setFiltro] = useState<string>('')         // estado
-  const [sel, setSel] = useState<string | null>(null)       // ticketId seleccionado
+  // `?ticket=<id>` preselecciona: los links desde la ficha de un cliente tienen que ATERRIZAR en
+  // el ticket, no dejar al agente buscándolo a mano en la lista.
+  const [searchParams] = useSearchParams()
+  const [sel, setSel] = useState<string | null>(searchParams.get('ticket'))  // ticketId seleccionado
 
   const { data, isLoading } = useQuery({
     queryKey: ['tickets', filtro],
