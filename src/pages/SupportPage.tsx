@@ -82,6 +82,9 @@ function TicketDetail({ ticketId, onChanged }: { ticketId: string; onChanged: ()
 
   if (isLoading || !data) return <div className="bg-surface rounded-xl shadow-card p-6 text-sm text-muted">Cargando…</div>
   const { ticket, mensajes } = data
+  // Mig 425 (repo Genesis360): si el ticket lo abrió el cliente desde la app, cada respuesta le llega como
+  // notificación a la campanita. En un ticket abierto por el equipo el cliente no ve nada.
+  const leLlegaAlCliente = mensajes.some(m => m.autor_tipo === 'cliente')
 
   return (
     <div className="bg-surface rounded-xl shadow-card flex flex-col">
@@ -111,11 +114,17 @@ function TicketDetail({ ticketId, onChanged }: { ticketId: string; onChanged: ()
       </div>
 
       <div className="px-5 py-4 border-t border-outline/30">
-        <textarea value={reply} onChange={e => setReply(e.target.value)} placeholder="Escribí una respuesta…"
+        <textarea value={reply} onChange={e => setReply(e.target.value)}
+          placeholder={leLlegaAlCliente ? 'Escribí la respuesta para el cliente…' : 'Escribí una nota…'}
           className="inp h-20 py-2 mb-2" />
+        <p className="text-xs text-muted mb-2">
+          {leLlegaAlCliente
+            ? 'Al cliente le llega como notificación en la app (hasta 500 caracteres). No escribas notas internas acá.'
+            : 'Ticket abierto por el equipo: el cliente no ve estos mensajes.'}
+        </p>
         <button disabled={!reply.trim() || responder.isPending} onClick={() => responder.mutate()}
           className="h-9 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-600 disabled:opacity-50">
-          {responder.isPending ? 'Enviando…' : 'Responder'}
+          {responder.isPending ? 'Enviando…' : leLlegaAlCliente ? 'Responder al cliente' : 'Guardar nota'}
         </button>
       </div>
     </div>
