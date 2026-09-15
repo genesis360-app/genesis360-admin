@@ -159,9 +159,19 @@ export interface TicketRow {
   id: string; asunto: string; estado: TicketEstado; prioridad: TicketPrioridad
   asignado_a: string | null; tenant_id: string; created_at: string; updated_at: string
   tenants?: { nombre: string | null } | null
+  // Mig 426 (repo Genesis360): consultas desde la app
+  canal?: 'manual' | 'email' | 'in_app'; tipo?: string | null; usuario_id?: string | null
+  pendiente_equipo?: boolean; ultimo_mensaje_at?: string | null
 }
-export interface TicketMensaje { id: string; autor_tipo: string; autor_id: string | null; cuerpo: string; created_at: string }
-export interface TicketDetail { ticket: TicketRow & Record<string, unknown>; mensajes: TicketMensaje[] }
+export interface TicketAdjunto { nombre: string; tipo: string; url: string | null }
+export interface TicketMensaje {
+  id: string; autor_tipo: string; autor_id: string | null; cuerpo: string; created_at: string
+  interno?: boolean; adjuntos?: TicketAdjunto[]
+}
+export interface TicketDetail {
+  ticket: TicketRow & { reportante?: { nombre_display: string | null; rol: string | null } | null } & Record<string, unknown>
+  mensajes: TicketMensaje[]
+}
 
 export type MedioPagoManual = 'transferencia' | 'efectivo' | 'tarjeta_mp' | 'otro'
 export interface ManualTenantRow {
@@ -229,13 +239,13 @@ export const adminApi = {
   listAudit: (f: { tenantId?: string; agentEmail?: string; action?: string; limit?: number } = {}) =>
     callAdminApi<{ entries: AuditEntry[] }>('audit.list', f),
 
-  listTickets: (f: { estado?: string; tenantId?: string; asignadoA?: 'me' } = {}) =>
+  listTickets: (f: { estado?: string; tenantId?: string; asignadoA?: 'me'; pendientes?: boolean } = {}) =>
     callAdminApi<{ tickets: TicketRow[] }>('support.tickets.list', f),
   getTicket: (ticketId: string) => callAdminApi<TicketDetail>('support.tickets.get', { ticketId }),
   createTicket: (a: { tenantId: string; asunto: string; prioridad?: TicketPrioridad; cuerpo?: string }) =>
     callAdminApi<{ ok: true; id: string }>('support.tickets.create', a),
-  replyTicket: (ticketId: string, cuerpo: string) =>
-    callAdminApi<{ ok: true }>('support.tickets.reply', { ticketId, cuerpo }),
+  replyTicket: (ticketId: string, cuerpo: string, interno = false) =>
+    callAdminApi<{ ok: true }>('support.tickets.reply', { ticketId, cuerpo, interno }),
   updateTicket: (a: { ticketId: string; estado?: TicketEstado; prioridad?: TicketPrioridad; asignadoA?: string | null }) =>
     callAdminApi<{ ok: true }>('support.tickets.update', a),
 
