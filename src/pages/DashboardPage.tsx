@@ -16,7 +16,7 @@ export default function DashboardPage() {
     { label: 'Clientes totales', value: m?.total },
     { label: 'Altas (30 días)', value: m?.altas30 },
     { label: 'En prueba', value: m?.enTrial },
-    { label: 'Tickets abiertos', value: m?.ticketsAbiertos },
+    { label: 'Consultas sin responder', value: m?.ticketsEsperanRespuesta },
   ]
 
   /**
@@ -26,11 +26,14 @@ export default function DashboardPage() {
    * para siempre aunque la fecha haya pasado: al 2026-09-12, 5 de los 6 "en trial" de PROD ya
    * estaban vencidos. Contarlos juntos infla el pipeline con gente que ya se fue.
    */
+  // Cada tarjeta lleva a la lista YA filtrada (antes iba a Clientes sin filtro y había que elegirlo de nuevo).
   const atencion = [
-    { label: 'Prueba vence en ≤7 días', value: m?.trialPorVencer, tono: 'text-amber-600', filtro: 'trial_vigente' },
-    { label: 'Prueba vencida sin convertir', value: m?.trialVencido, tono: 'text-danger', filtro: 'trial_vencido' },
-    { label: 'Sin entrar hace +30 días', value: m?.sinActividad30, tono: 'text-amber-600', filtro: null },
-    { label: 'Con baja programada', value: m?.bajasProgramadas, tono: 'text-danger', filtro: null },
+    { label: 'Prueba vence en ≤7 días', value: m?.trialPorVencer, tono: 'text-amber-600', to: '/customers?estado=trial_vigente' },
+    { label: 'Prueba vencida sin convertir', value: m?.trialVencido, tono: 'text-danger', to: '/customers?estado=trial_vencido' },
+    { label: 'Sin entrar hace +30 días', value: m?.sinActividad30, tono: 'text-amber-600', to: '/customers?estado=sin_actividad' },
+    { label: 'Con baja programada', value: m?.bajasProgramadas, tono: 'text-danger', to: '/customers?estado=baja_programada' },
+    { label: 'Consultas sin responder', value: m?.ticketsEsperanRespuesta, tono: 'text-danger', to: '/support' },
+    { label: 'Alertas de cobro (Mercado Pago)', value: m?.alertasMp, tono: 'text-danger', to: '/billing' },
   ]
 
   return (
@@ -51,11 +54,11 @@ export default function DashboardPage() {
 
           <div className="bg-surface rounded-xl shadow-card p-5 mb-6">
             <div className="text-sm font-semibold text-ink mb-3">Requiere atención</div>
-            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
               {atencion.map(a => (
                 <button
                   key={a.label}
-                  onClick={() => navigate('/customers')}
+                  onClick={() => navigate(a.to)}
                   className="text-left rounded-lg border border-outline p-4 hover:bg-primary/5 transition-colors">
                   <div className={`text-2xl font-bold ${(a.value ?? 0) > 0 ? a.tono : 'text-ink'}`}>
                     {isLoading ? '…' : a.value ?? 0}
@@ -65,7 +68,7 @@ export default function DashboardPage() {
               ))}
             </div>
             <p className="text-xs text-muted mt-3">
-              En Clientes podés filtrar por estado y buscar por el mail del dueño.
+              Tocá una tarjeta para ver la lista. En Clientes también podés buscar por el mail del dueño.
             </p>
           </div>
 

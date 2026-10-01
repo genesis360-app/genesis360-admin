@@ -1,10 +1,16 @@
 import { useState, Fragment } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { PageHeader } from '@/components/PageHeader'
-import { adminApi, type MedioPagoManual } from '@/lib/adminApi'
+import { adminApi, type MedioPagoManual, type MpAlerta } from '@/lib/adminApi'
 
 const money = (n: number) => '$' + Math.round(n).toLocaleString('es-AR')
 const fecha = (s: string | null) => s ? new Date(s).toLocaleDateString('es-AR') : '—'
+
+const TEXTO_ALERTA: Record<MpAlerta['tipo'], string> = {
+  huerfana: 'MP cobra una suscripción sin negocio vinculado',
+  drift_mp_cobra: 'MP cobra pero el negocio no tiene acceso',
+  drift_acceso_gratis: 'Tiene acceso pero MP ya no cobra',
+}
 
 const MEDIOS: { value: MedioPagoManual; label: string }[] = [
   { value: 'transferencia', label: 'Transferencia' },
@@ -18,6 +24,15 @@ export default function BillingPage() {
   const { data, isLoading, isError, error } = useQuery({ queryKey: ['billing'], queryFn: () => adminApi.billingOverview() })
   const { data: manualData } = useQuery({ queryKey: ['billing-manual'], queryFn: () => adminApi.listManualTenants() })
   const { data: facturasStats } = useQuery({ queryKey: ['billing-platform-facturas'], queryFn: () => adminApi.platformFacturasStats() })
+  const { data: alertasData } = useQuery({ queryKey: ['billing-mp-alerts'], queryFn: () => adminApi.mpAlerts() })
+  const [descartando, setDescartando] = useState<number | null>(null)
+  const [notaDescarte, setNotaDescarte] = useState('')
+  const descartar = useMutation({
+    mutationFn: (id: number) => adminApi.discardMpAlert(id, notaDescarte.trim()),
+    onSuccess: () => { setDescartando(null); setNotaDescarte(''); qc.invalidateQueries({ queryKey: ['billing-mp-alerts'] }); qc.invalidateQueries({ queryKey: ['metrics'] }) },
+  })
+  const alertas = alertasData?.alertas ?? []
+  const alertasPendientes = alertas.filter(a => !a.descartada_at)
 
   const [registrando, setRegistrando] = useState<string | null>(null) // tenantId con el form abierto
   const [form, setForm] = useState({ monto: '', medio: 'transferencia' as MedioPagoManual, referencia: '', notas: '' })
@@ -86,7 +101,7 @@ export default function BillingPage() {
                   <tr key={i} className="border-b border-outline/20">
                     <td className="px-5 py-2 font-medium text-ink">{p.nombre}</td>
                     <td className="px-5 py-2 text-muted">{money(p.precio_mensual)}</td>
-                    <td className="px-5 py-2 text-ink">{p.tenants}</td>
+                    <td className="px-5 py-2 text-ink">{p.tenants}{p.sin_precio ? <span className="text-xs text-muted"> ({p.sin_precio} sin precio publicado)</span> : null}</td>
                     <td className="px-5 py-2 text-ink">{money(p.subtotal)}</td>
                   </tr>
                 ))}
@@ -95,6 +110,67 @@ export default function BillingPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Alertas de la reconciliación de Mercado Pago (cada hora). Antes solo llegaban por mail. */}
+          <div className="bg-surface rounded-xl shadow-card overflow-hidden mb-6">
+            <div className="px-5 py-3 border-b border-outline/30 flex flex-wrap items-center gap-3">
+              <span className="text-sm font-semibold text-ink">Alertas de cobro (Mercado Pago)</span>
+              {alertasPendientes.length > 0
+                ? <span className="text-xs font-semibold text-danger">{alertasPendientes.length} sin revisar</span>
+                : <span className="text-xs text-muted">sin alertas pendientes</span>}
+            </div>
+            {alertas.length > 0 && (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs font-semibold text-muted border-b border-outline/30">
+                    <th className="px-5 py-2">Qué pasa</th><th className="px-5 py-2">Negocio</th>
+                    <th className="px-5 py-2">Suscripción MP</th><th className="px-5 py-2">Desde</th><th className="px-5 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {alertas.map(a => (
+                    <Fragment key={a.id}>
+                      <tr className={`border-b border-outline/20 ${a.descartada_at ? 'opacity-60' : ''}`}>
+                        <td className="px-5 py-2 text-ink">{TEXTO_ALERTA[a.tipo]}</td>
+                        <td className="px-5 py-2 text-muted">{a.tenant_nombre ?? '— sin negocio —'}</td>
+                        <td className="px-5 py-2 font-mono text-xs text-muted">{a.preapproval_id}</td>
+                        <td className="px-5 py-2 text-muted">{fecha(a.first_seen)}</td>
+                        <td className="px-5 py-2 text-right">
+                          {a.descartada_at
+                            ? <span className="text-xs text-muted" title={a.nota ?? ''}>Descartada: {a.nota}</span>
+                            : (
+                              <button onClick={() => { setDescartando(descartando === a.id ? null : a.id); setNotaDescarte('') }}
+                                className="h-8 px-3 rounded-lg border border-outline text-xs font-semibold text-muted hover:bg-primary/10">
+                                Descartar
+                              </button>
+                            )}
+                        </td>
+                      </tr>
+                      {descartando === a.id && (
+                        <tr className="border-b border-outline/20 bg-surface-low">
+                          <td colSpan={5} className="px-5 py-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <input value={notaDescarte} onChange={e => setNotaDescarte(e.target.value)}
+                                placeholder="Por qué se descarta (ej. suscripción de prueba del equipo)"
+                                className="flex-1 min-w-[260px] h-9 px-3 rounded-lg border border-outline bg-white text-sm" />
+                              <button onClick={() => descartar.mutate(a.id)} disabled={!notaDescarte.trim() || descartar.isPending}
+                                className="h-9 px-3 rounded-lg bg-primary text-white text-xs font-semibold disabled:opacity-50">
+                                {descartar.isPending ? 'Guardando…' : 'Confirmar'}
+                              </button>
+                            </div>
+                            <p className="text-xs text-muted mt-2">
+                              Una suscripción huérfana de un cliente real no se descarta: se vincula desde su ficha (Clientes → Vincular suscripción).
+                            </p>
+                            {descartar.isError && <p className="text-xs text-danger mt-1">{(descartar.error as Error).message}</p>}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
 
           {/* Pagos manuales (billing_mode='manual') — plan aprobado 2026-07-08 */}

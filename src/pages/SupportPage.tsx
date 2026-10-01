@@ -11,6 +11,12 @@ const PRIO_COLOR: Record<TicketPrioridad, string> = {
 }
 const fmt = (s: string) => new Date(s).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 
+// "esperando" = el equipo ya respondió y espera al cliente (lo pone admin-api al responder; si el cliente vuelve a
+// escribir, el ticket se reabre solo).
+const ESTADO_LABEL: Record<string, string> = {
+  abierto: 'Abierto', en_progreso: 'En progreso', esperando: 'Esperando al cliente', resuelto: 'Resuelto', cerrado: 'Cerrado',
+}
+
 export default function SupportPage() {
   const qc = useQueryClient()
   const [filtro, setFiltro] = useState<string>('')         // estado
@@ -64,7 +70,7 @@ export default function SupportPage() {
                   <div className="text-xs text-muted mt-0.5 flex flex-wrap items-center gap-x-2">
                     {t.pendiente_equipo && <span className="font-semibold text-orange-600">● Respuesta del cliente</span>}
                     <span>
-                      {t.tenants?.nombre ?? '—'} · <span className="capitalize">{t.estado.replace('_', ' ')}</span> · {fmt(t.ultimo_mensaje_at ?? t.updated_at)}
+                      {t.tenants?.nombre ?? '—'} · <span>{ESTADO_LABEL[t.estado] ?? t.estado}</span> · {fmt(t.ultimo_mensaje_at ?? t.updated_at)}
                     </span>
                   </div>
                 </button>
