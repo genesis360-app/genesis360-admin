@@ -122,11 +122,19 @@ export interface AuditEntry {
 }
 export interface Metrics {
   total: number; altas30: number; enTrial: number; ticketsAbiertos: number; basico: number; avanzado: number; mrr: number
+  /** Consultas donde el cliente escribió último (esperan al equipo) y alertas de cobro de MP sin revisar. */
+  ticketsEsperanRespuesta: number; alertasMp: number
   /** Lo que requiere atención hoy. `enTrial` cuenta SOLO las pruebas vigentes: el campo
       `subscription_status` se queda en 'trial' aunque la fecha haya pasado. */
   trialPorVencer: number; trialVencido: number; bajasProgramadas: number; sinActividad30: number
 }
-export interface PlanRow { nombre: string; precio_mensual: number; tenants: number; subtotal: number }
+export interface PlanRow { nombre: string; precio_mensual: number; tenants: number; subtotal: number; sin_precio?: number }
+/** Alerta de la reconciliación de Mercado Pago (mig 256 + 445). */
+export interface MpAlerta {
+  id: number; tipo: 'huerfana' | 'drift_mp_cobra' | 'drift_acceso_gratis'; preapproval_id: string
+  tenant_id: string | null; tenant_nombre: string | null; first_seen: string
+  descartada_at: string | null; nota: string | null
+}
 export type LeadEstado = 'lead' | 'qualified' | 'demo' | 'trial' | 'won' | 'lost'
 export interface Lead {
   id: string; nombre: string; empresa: string | null; email: string | null; telefono: string | null
@@ -250,6 +258,8 @@ export const adminApi = {
     callAdminApi<{ ok: true }>('support.tickets.update', a),
 
   billingOverview: () => callAdminApi<{ mrr: number; por_plan: PlanRow[] }>('billing.overview'),
+  mpAlerts: () => callAdminApi<{ alertas: MpAlerta[] }>('billing.mp_alerts.list'),
+  discardMpAlert: (alertaId: number, nota: string) => callAdminApi<{ ok: true }>('billing.mp_alerts.discard', { alertaId, nota }),
   cancelSubscription: (tenantId: string) =>
     callAdminApi<{ ok: true; mp_cancelled: number }>('billing.cancel_subscription', { tenantId }),
   // Linkea a un tenant una suscripción MP huérfana (activa en MP, sin linkear en la app)

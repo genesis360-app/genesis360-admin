@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, ChevronRight, AlertTriangle, Trash2, Download } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { adminApi, type CustomerRow } from '@/lib/adminApi'
@@ -19,6 +19,8 @@ function hace(s: string | null): string {
 }
 
 type Estado = 'trial_vigente' | 'trial_vencido' | 'activa' | 'cancelada' | 'otro'
+/** Filtros de la lista: el estado de la cuenta más dos que vienen del Dashboard ("Requiere atención"). */
+type Filtro = Estado | 'todos' | 'sin_actividad' | 'baja_programada'
 
 /**
  * En qué estado real está la cuenta.
@@ -43,12 +45,14 @@ function estadoDe(c: CustomerRow): { estado: Estado; label: string; clase: strin
   return { estado: 'otro', label: c.subscription_status ?? '—', clase: 'bg-gray-200 text-gray-600' }
 }
 
-const FILTROS: { id: Estado | 'todos'; label: string }[] = [
+const FILTROS: { id: Filtro; label: string }[] = [
   { id: 'todos', label: 'Todos' },
   { id: 'trial_vigente', label: 'En prueba' },
   { id: 'trial_vencido', label: 'Prueba vencida' },
   { id: 'activa', label: 'Activas' },
   { id: 'cancelada', label: 'Canceladas' },
+  { id: 'sin_actividad', label: 'Sin entrar +30 d' },
+  { id: 'baja_programada', label: 'Baja programada' },
 ]
 
 /**
@@ -79,14 +83,22 @@ function exportarCsv(filas: CustomerRow[]) {
 export default function CustomersPage() {
   const navigate = useNavigate()
   const [q, setQ] = useState('')
-  const [filtro, setFiltro] = useState<Estado | 'todos'>('todos')
+  // El filtro viaja en la URL (?estado=…): así las tarjetas del Dashboard abren la lista ya filtrada.
+  const [params, setParams] = useSearchParams()
+  const filtro: Filtro = (FILTROS.some(f => f.id === params.get('estado')) ? params.get('estado') : 'todos') as Filtro
+  const setFiltro = (f: Filtro) => setParams(f === 'todos' ? {} : { estado: f }, { replace: true })
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['customers', q],
     queryFn: () => adminApi.listCustomers(q || undefined),
   })
   const todos = data?.customers ?? []
-  const customers = filtro === 'todos' ? todos : todos.filter(c => estadoDe(c).estado === filtro)
+  const hace30 = Date.now() - 30 * 86400000
+  const customers = todos.filter(c =>
+    filtro === 'todos' ? true
+      : filtro === 'sin_actividad' ? (!c.ultimo_acceso || new Date(c.ultimo_acceso).getTime() < hace30)
+      : filtro === 'baja_programada' ? !!c.delete_scheduled_at
+      : estadoDe(c).estado === filtro)
 
   return (
     <div>
