@@ -142,7 +142,7 @@ export interface Lead {
 }
 export interface CustomerDetail {
   tenant: {
-    id: string; nombre: string | null; plan_id: string | null; plan_tier: string | null
+    id: string; nombre: string | null; plan_tier: string | null
     billing_mode: string | null; modo_operacion: string | null
     created_at: string; trial_ends_at: string | null; inicio_actividades: string | null
     subscription_status: string | null; subscription_period_end: string | null
