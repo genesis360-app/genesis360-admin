@@ -286,7 +286,7 @@ export default function CustomerDetailPage() {
           </div>
           <dl className="px-5 py-3 text-sm grid grid-cols-2 gap-y-2">
             <dt className="text-muted">Plan</dt>
-            <dd className="text-ink">{tenant.plan_tier ?? tenant.plan_id ?? 'Free'}{tenant.billing_mode === 'manual' ? ' · pago manual' : ''}</dd>
+            <dd className="text-ink">{tenant.plan_tier ?? 'Free'}{tenant.billing_mode === 'manual' ? ' · pago manual' : ''}</dd>
             <dt className="text-muted">Moneda</dt>
             <dd className="text-ink">{tenant.moneda ?? 'ARS'}</dd>
             <dt className="text-muted">Teléfono</dt>
